@@ -3,14 +3,22 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
+import LandingPage from "@/pages/landing";
+import DashboardPage from "@/pages/dashboard";
+import ExplorePage from "@/pages/explore";
+import SubmitPage from "@/pages/submit";
+import ProjectDetailPage from "@/pages/project-detail";
 
 function Router() {
   return (
     <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
+      <Route path="/" component={LandingPage} />
+      <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/explore" component={ExplorePage} />
+      <Route path="/submit" component={SubmitPage} />
+      <Route path="/project/:id" component={ProjectDetailPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -19,10 +27,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <ThemeProvider defaultTheme="dark" storageKey="rwa-analyzer-theme">
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

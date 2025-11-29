@@ -1,0 +1,359 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+
+/**
+ * @title RWARiskRegistry
+ * @dev On-chain registry for RWA (Real World Asset) risk analysis data
+ * @notice This contract stores risk scores and analysis metadata for tokenized real-world assets
+ * @custom:security-contact security@rwa-analyzer.com
+ */
+contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
+    
+    // ============ Enums ============
+    
+    enum AssetType { RealEstate, Bonds, Invoices, Commodities }
+    enum RiskLevel { Low, Medium, High, Critical }
+    
+    // ============ Structs ============
+    
+    struct RiskAnalysis {
+        uint256 overallScore;           // 0-100
+        uint256 financialHealthScore;    // 0-100
+        uint256 teamCredibilityScore;    // 0-100
+        uint256 marketViabilityScore;    // 0-100
+        uint256 regulatoryComplianceScore; // 0-100
+        uint256 technicalImplementationScore; // 0-100
+        RiskLevel riskLevel;
+        string ipfsHash;                 // IPFS hash for detailed analysis
+        uint256 timestamp;
+        address analyzer;
+    }
+    
+    struct Project {
+        string name;
+        AssetType assetType;
+        address tokenContract;
+        uint256 totalValue;
+        string tokenSymbol;
+        bool isActive;
+        uint256 registeredAt;
+        address owner;
+    }
+    
+    // ============ State Variables ============
+    
+    mapping(bytes32 => Project) public projects;
+    mapping(bytes32 => RiskAnalysis[]) public projectAnalyses;
+    mapping(bytes32 => bool) public projectExists;
+    mapping(address => bool) public authorizedAnalyzers;
+    
+    bytes32[] public projectIds;
+    
+    uint256 public totalProjects;
+    uint256 public totalAnalyses;
+    
+    uint256 public constant MAX_SCORE = 100;
+    uint256 public constant MIN_ANALYSIS_INTERVAL = 1 hours;
+    
+    // ============ Events ============
+    
+    event ProjectRegistered(
+        bytes32 indexed projectId,
+        string name,
+        AssetType assetType,
+        address tokenContract,
+        address indexed owner
+    );
+    
+    event AnalysisSubmitted(
+        bytes32 indexed projectId,
+        uint256 overallScore,
+        RiskLevel riskLevel,
+        address indexed analyzer
+    );
+    
+    event AnalyzerAuthorized(address indexed analyzer, bool status);
+    
+    event ProjectStatusChanged(bytes32 indexed projectId, bool isActive);
+    
+    // ============ Modifiers ============
+    
+    modifier onlyAuthorizedAnalyzer() {
+        require(
+            authorizedAnalyzers[msg.sender] || msg.sender == owner(),
+            "Not authorized analyzer"
+        );
+        _;
+    }
+    
+    modifier projectMustExist(bytes32 projectId) {
+        require(projectExists[projectId], "Project does not exist");
+        _;
+    }
+    
+    modifier validScores(
+        uint256 overall,
+        uint256 financial,
+        uint256 team,
+        uint256 market,
+        uint256 regulatory,
+        uint256 technical
+    ) {
+        require(overall <= MAX_SCORE, "Overall score exceeds max");
+        require(financial <= MAX_SCORE, "Financial score exceeds max");
+        require(team <= MAX_SCORE, "Team score exceeds max");
+        require(market <= MAX_SCORE, "Market score exceeds max");
+        require(regulatory <= MAX_SCORE, "Regulatory score exceeds max");
+        require(technical <= MAX_SCORE, "Technical score exceeds max");
+        _;
+    }
+    
+    // ============ Constructor ============
+    
+    constructor() Ownable(msg.sender) {
+        authorizedAnalyzers[msg.sender] = true;
+    }
+    
+    // ============ External Functions ============
+    
+    /**
+     * @notice Register a new RWA project
+     * @param name Project name
+     * @param assetType Type of real-world asset
+     * @param tokenContract Address of the token contract
+     * @param totalValue Total value of the underlying assets
+     * @param tokenSymbol Token symbol
+     */
+    function registerProject(
+        string calldata name,
+        AssetType assetType,
+        address tokenContract,
+        uint256 totalValue,
+        string calldata tokenSymbol
+    ) external whenNotPaused returns (bytes32) {
+        require(bytes(name).length > 0, "Name cannot be empty");
+        require(bytes(tokenSymbol).length > 0, "Symbol cannot be empty");
+        
+        bytes32 projectId = keccak256(
+            abi.encodePacked(name, tokenContract, block.timestamp, msg.sender)
+        );
+        
+        require(!projectExists[projectId], "Project already exists");
+        
+        projects[projectId] = Project({
+            name: name,
+            assetType: assetType,
+            tokenContract: tokenContract,
+            totalValue: totalValue,
+            tokenSymbol: tokenSymbol,
+            isActive: true,
+            registeredAt: block.timestamp,
+            owner: msg.sender
+        });
+        
+        projectExists[projectId] = true;
+        projectIds.push(projectId);
+        totalProjects++;
+        
+        emit ProjectRegistered(projectId, name, assetType, tokenContract, msg.sender);
+        
+        return projectId;
+    }
+    
+    /**
+     * @notice Submit a risk analysis for a project
+     * @param projectId The project ID
+     * @param overallScore Overall risk score (0-100)
+     * @param financialHealthScore Financial health score (0-100)
+     * @param teamCredibilityScore Team credibility score (0-100)
+     * @param marketViabilityScore Market viability score (0-100)
+     * @param regulatoryComplianceScore Regulatory compliance score (0-100)
+     * @param technicalImplementationScore Technical implementation score (0-100)
+     * @param ipfsHash IPFS hash containing detailed analysis
+     */
+    function submitAnalysis(
+        bytes32 projectId,
+        uint256 overallScore,
+        uint256 financialHealthScore,
+        uint256 teamCredibilityScore,
+        uint256 marketViabilityScore,
+        uint256 regulatoryComplianceScore,
+        uint256 technicalImplementationScore,
+        string calldata ipfsHash
+    ) 
+        external 
+        whenNotPaused
+        onlyAuthorizedAnalyzer
+        projectMustExist(projectId)
+        validScores(
+            overallScore,
+            financialHealthScore,
+            teamCredibilityScore,
+            marketViabilityScore,
+            regulatoryComplianceScore,
+            technicalImplementationScore
+        )
+    {
+        RiskAnalysis[] storage analyses = projectAnalyses[projectId];
+        
+        if (analyses.length > 0) {
+            RiskAnalysis storage lastAnalysis = analyses[analyses.length - 1];
+            require(
+                block.timestamp >= lastAnalysis.timestamp + MIN_ANALYSIS_INTERVAL,
+                "Too soon since last analysis"
+            );
+        }
+        
+        RiskLevel riskLevel = _calculateRiskLevel(overallScore);
+        
+        analyses.push(RiskAnalysis({
+            overallScore: overallScore,
+            financialHealthScore: financialHealthScore,
+            teamCredibilityScore: teamCredibilityScore,
+            marketViabilityScore: marketViabilityScore,
+            regulatoryComplianceScore: regulatoryComplianceScore,
+            technicalImplementationScore: technicalImplementationScore,
+            riskLevel: riskLevel,
+            ipfsHash: ipfsHash,
+            timestamp: block.timestamp,
+            analyzer: msg.sender
+        }));
+        
+        totalAnalyses++;
+        
+        emit AnalysisSubmitted(projectId, overallScore, riskLevel, msg.sender);
+    }
+    
+    /**
+     * @notice Authorize or revoke an analyzer
+     * @param analyzer Address of the analyzer
+     * @param status Authorization status
+     */
+    function setAnalyzerAuthorization(address analyzer, bool status) 
+        external 
+        onlyOwner 
+    {
+        authorizedAnalyzers[analyzer] = status;
+        emit AnalyzerAuthorized(analyzer, status);
+    }
+    
+    /**
+     * @notice Set project active status
+     * @param projectId The project ID
+     * @param isActive Active status
+     */
+    function setProjectStatus(bytes32 projectId, bool isActive) 
+        external 
+        projectMustExist(projectId)
+    {
+        require(
+            msg.sender == projects[projectId].owner || msg.sender == owner(),
+            "Not authorized"
+        );
+        
+        projects[projectId].isActive = isActive;
+        emit ProjectStatusChanged(projectId, isActive);
+    }
+    
+    /**
+     * @notice Pause the contract
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+    
+    /**
+     * @notice Unpause the contract
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+    
+    // ============ View Functions ============
+    
+    /**
+     * @notice Get the latest analysis for a project
+     * @param projectId The project ID
+     */
+    function getLatestAnalysis(bytes32 projectId) 
+        external 
+        view 
+        projectMustExist(projectId)
+        returns (RiskAnalysis memory) 
+    {
+        RiskAnalysis[] storage analyses = projectAnalyses[projectId];
+        require(analyses.length > 0, "No analyses available");
+        return analyses[analyses.length - 1];
+    }
+    
+    /**
+     * @notice Get all analyses for a project
+     * @param projectId The project ID
+     */
+    function getProjectAnalyses(bytes32 projectId) 
+        external 
+        view 
+        projectMustExist(projectId)
+        returns (RiskAnalysis[] memory) 
+    {
+        return projectAnalyses[projectId];
+    }
+    
+    /**
+     * @notice Get analysis count for a project
+     * @param projectId The project ID
+     */
+    function getAnalysisCount(bytes32 projectId) 
+        external 
+        view 
+        projectMustExist(projectId)
+        returns (uint256) 
+    {
+        return projectAnalyses[projectId].length;
+    }
+    
+    /**
+     * @notice Get all project IDs
+     */
+    function getAllProjectIds() external view returns (bytes32[] memory) {
+        return projectIds;
+    }
+    
+    /**
+     * @notice Get project details
+     * @param projectId The project ID
+     */
+    function getProject(bytes32 projectId) 
+        external 
+        view 
+        projectMustExist(projectId)
+        returns (Project memory) 
+    {
+        return projects[projectId];
+    }
+    
+    /**
+     * @notice Check if an address is an authorized analyzer
+     * @param analyzer Address to check
+     */
+    function isAuthorizedAnalyzer(address analyzer) external view returns (bool) {
+        return authorizedAnalyzers[analyzer];
+    }
+    
+    // ============ Internal Functions ============
+    
+    /**
+     * @dev Calculate risk level based on overall score
+     * @param score Overall risk score
+     */
+    function _calculateRiskLevel(uint256 score) internal pure returns (RiskLevel) {
+        if (score >= 75) return RiskLevel.Low;
+        if (score >= 50) return RiskLevel.Medium;
+        if (score >= 25) return RiskLevel.High;
+        return RiskLevel.Critical;
+    }
+}
