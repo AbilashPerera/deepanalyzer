@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-The RWA Risk Analyzer is built as a modern full-stack application with clear separation of concerns between frontend, backend, and AI services.
+The RWA Risk Analyzer is built as a modern full-stack application with clear separation of concerns between frontend, backend, and AI services. **All data is real and stored in PostgreSQL** - there is no demo or mock data in production.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -19,17 +19,26 @@ The RWA Risk Analyzer is built as a modern full-stack application with clear sep
 ┌─────────────────────────────────────────────────────────────┐
 │                    Backend (Express.js)                      │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  REST API   │  │   Storage   │  │  OpenAI Service    │  │
+│  │  REST API   │  │ PostgreSQL  │  │  OpenAI Service    │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
         ┌──────────┐   ┌──────────┐   ┌──────────────┐
-        │ OpenAI   │   │  Mantle  │   │   Oracle     │
-        │   GPT    │   │ Network  │   │    Data      │
+        │ OpenAI   │   │  Mantle  │   │  PostgreSQL  │
+        │   GPT    │   │ Network  │   │   Database   │
         └──────────┘   └──────────┘   └──────────────┘
 ```
+
+## Data Architecture
+
+This application uses **real data only**:
+
+- **PostgreSQL Database**: All projects, risk analyses, alerts, and market data are stored persistently
+- **No Demo Data**: The landing page stats reflect actual database counts
+- **Real AI Analysis**: GPT-powered analysis runs on every submitted project
+- **On-Chain Registry**: Smart contracts available for on-chain data verification
 
 ## Core Components
 
