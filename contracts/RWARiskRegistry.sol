@@ -198,26 +198,23 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
             technicalImplementationScore
         )
     {
-        RiskAnalysis[] storage analyses = projectAnalyses[projectId];
-        
-        if (analyses.length > 0) {
-            RiskAnalysis storage lastAnalysis = analyses[analyses.length - 1];
+        // Check minimum interval since last analysis
+        if (projectAnalyses[projectId].length > 0) {
             require(
-                block.timestamp >= lastAnalysis.timestamp + MIN_ANALYSIS_INTERVAL,
+                block.timestamp >= projectAnalyses[projectId][projectAnalyses[projectId].length - 1].timestamp + MIN_ANALYSIS_INTERVAL,
                 "Too soon since last analysis"
             );
         }
         
-        RiskLevel riskLevel = _calculateRiskLevel(overallScore);
-        
-        analyses.push(RiskAnalysis({
+        // Push new analysis directly to storage
+        projectAnalyses[projectId].push(RiskAnalysis({
             overallScore: overallScore,
             financialHealthScore: financialHealthScore,
             teamCredibilityScore: teamCredibilityScore,
             marketViabilityScore: marketViabilityScore,
             regulatoryComplianceScore: regulatoryComplianceScore,
             technicalImplementationScore: technicalImplementationScore,
-            riskLevel: riskLevel,
+            riskLevel: _calculateRiskLevel(overallScore),
             ipfsHash: ipfsHash,
             timestamp: block.timestamp,
             analyzer: msg.sender
@@ -225,7 +222,7 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         
         totalAnalyses++;
         
-        emit AnalysisSubmitted(projectId, overallScore, riskLevel, msg.sender);
+        emit AnalysisSubmitted(projectId, overallScore, _calculateRiskLevel(overallScore), msg.sender);
     }
     
     /**
