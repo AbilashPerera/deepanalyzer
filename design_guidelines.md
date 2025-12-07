@@ -1,4 +1,4 @@
-# Design Guidelines: AI-Powered RWA Risk Analyzer
+# Design Guidelines: AI-Powered RiskLens
 
 ## Design Approach
 

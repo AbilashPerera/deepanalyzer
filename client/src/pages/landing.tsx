@@ -7,17 +7,15 @@ import {
   Shield, 
   Zap, 
   Brain, 
-  Globe, 
   Lock, 
   TrendingUp,
   ArrowRight,
-  CheckCircle2,
   Sparkles,
-  Database,
   LineChart
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { WalletConnect } from "@/components/wallet-connect";
+import { useQuery } from "@tanstack/react-query";
 
 const features = [
   {
@@ -52,13 +50,6 @@ const features = [
   },
 ];
 
-const stats = [
-  { value: "$2.5B+", label: "Assets Analyzed" },
-  { value: "150+", label: "RWA Projects" },
-  { value: "99.9%", label: "Uptime" },
-  { value: "5K+", label: "Active Users" },
-];
-
 const techStack = [
   { name: "Mantle Network", description: "Layer 2 Blockchain" },
   { name: "OpenAI GPT", description: "AI Analysis" },
@@ -66,7 +57,29 @@ const techStack = [
   { name: "React", description: "Frontend" },
 ];
 
+function formatCurrency(value: number): string {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(1)}B`;
+  }
+  if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(1)}M`;
+  }
+  if (value >= 1000) {
+    return `$${(value / 1000).toFixed(0)}K`;
+  }
+  return `$${value.toFixed(0)}`;
+}
+
 export default function LandingPage() {
+  const { data: stats } = useQuery<{ projectCount: number; totalValue: number; analysisCount: number }>({
+    queryKey: ["/api/stats"],
+    queryFn: async () => {
+      const response = await fetch("/api/stats");
+      if (!response.ok) throw new Error("Failed to fetch stats");
+      return response.json();
+    },
+  });
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -85,7 +98,7 @@ export default function LandingPage() {
             >
               <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-purple-500/30 bg-purple-500/10">
                 <Sparkles className="w-3 h-3 mr-2 text-purple-400" />
-                Built for Mantle Global Hackathon 2025
+                AI-Powered RWA Intelligence on Mantle
               </Badge>
             </motion.div>
 
@@ -95,10 +108,9 @@ export default function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
-              AI-Powered{" "}
-              <span className="gradient-text">RWA Risk</span>
+              <span className="gradient-text">RiskLens</span>
               <br />
-              Analyzer
+              RWA Intelligence
             </motion.h1>
 
             <motion.p
@@ -132,22 +144,40 @@ export default function LandingPage() {
             </motion.div>
           </div>
 
-          {/* Stats */}
-          <motion.div
-            className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-20 max-w-4xl mx-auto"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-          >
-            {stats.map((stat, index) => (
-              <Card key={index} className="border-card-border/50 bg-card/30 backdrop-blur-sm text-center">
+          {/* Real Stats from Database */}
+          {stats && (stats.projectCount > 0 || stats.totalValue > 0) && (
+            <motion.div
+              className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-20 max-w-3xl mx-auto"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+            >
+              <Card className="border-card-border/50 bg-card/30 backdrop-blur-sm text-center">
                 <CardContent className="p-4 sm:p-6">
-                  <p className="text-2xl sm:text-3xl font-bold font-display gradient-text">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
+                  <p className="text-2xl sm:text-3xl font-bold font-display gradient-text">
+                    {formatCurrency(stats.totalValue)}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Assets Analyzed</p>
                 </CardContent>
               </Card>
-            ))}
-          </motion.div>
+              <Card className="border-card-border/50 bg-card/30 backdrop-blur-sm text-center">
+                <CardContent className="p-4 sm:p-6">
+                  <p className="text-2xl sm:text-3xl font-bold font-display gradient-text">
+                    {stats.projectCount}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">RWA Projects</p>
+                </CardContent>
+              </Card>
+              <Card className="border-card-border/50 bg-card/30 backdrop-blur-sm text-center col-span-2 md:col-span-1">
+                <CardContent className="p-4 sm:p-6">
+                  <p className="text-2xl sm:text-3xl font-bold font-display gradient-text">
+                    {stats.analysisCount}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Risk Analyses</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </div>
       </section>
 
@@ -287,7 +317,7 @@ export default function LandingPage() {
                   Ready to Analyze Your First RWA Project?
                 </h2>
                 <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-                  Join thousands of investors making smarter decisions with AI-powered risk analysis.
+                  Submit your tokenized real-world asset project for comprehensive AI-powered risk analysis.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <WalletConnect />
@@ -311,10 +341,10 @@ export default function LandingPage() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
-              <span className="font-display font-bold">RWA Analyzer</span>
+              <span className="font-display font-bold">RiskLens</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Built for Mantle Global Hackathon 2025
+              AI-Powered RWA Risk Intelligence
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <a href="https://www.mantle.xyz" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">

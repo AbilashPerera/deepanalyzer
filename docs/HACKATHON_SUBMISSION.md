@@ -1,6 +1,6 @@
 # Mantle Global Hackathon 2025 - Submission
 
-## Project: AI-Powered RWA Risk Analyzer
+## Project: AI-Powered RiskLens
 
 ### One-Line Description
 An AI-driven platform for evaluating tokenized real-world assets with comprehensive risk scoring, oracle data integration, and personalized investment recommendations.
@@ -20,7 +20,7 @@ The tokenization of real-world assets (RWAs) is rapidly growing, with projection
 
 ## Solution
 
-The RWA Risk Analyzer provides:
+The RiskLens provides:
 
 ### AI-Powered Analysis
 - GPT-5 integration for intelligent project evaluation
@@ -74,15 +74,25 @@ Five-category scoring system:
 ### Stack
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Shadcn UI
 - **Backend**: Node.js, Express.js, TypeScript
+- **Database**: PostgreSQL (Neon Serverless)
 - **AI**: OpenAI GPT-5
 - **Blockchain**: Mantle Network (Testnet & Mainnet)
 - **Wallet**: MetaMask with Mantle network support
+- **Deployment**: Netlify (Serverless Functions)
 
 ### Mantle Integration
-- Smart contract ready for on-chain risk registry
+- **RWARiskRegistry.sol**: On-chain risk analysis storage
+- **RWAToken.sol**: ERC20 token for RWA fractionalization
+- **RWAYieldDistributor.sol**: Yield distribution to token holders
 - Wallet connection with network detection
 - Explorer links for contract verification
-- Testnet deployment for demo
+- Ready for Mantle mainnet deployment
+
+### Real Data Architecture
+- PostgreSQL database for persistent storage
+- No mock or demo data - all stats reflect real usage
+- Real-time AI analysis on project submission
+- Dynamic landing page metrics from database
 
 ### AI Integration
 - Structured JSON responses from GPT-5

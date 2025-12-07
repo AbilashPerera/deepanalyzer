@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Navbar } from "@/components/navbar";
 import { RiskGauge, RiskScoreBar } from "@/components/risk-gauge";
 import { RecommendationCard } from "@/components/recommendation-card";
@@ -31,10 +34,29 @@ import {
   XCircle,
   AlertTriangle,
   Brain,
-  BarChart3
+  BarChart3,
+  Pencil
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import type { RwaProjectWithAnalysis, RiskAlert, InvestmentRecommendation, RiskTolerance } from "@shared/schema";
+import { insertRwaProjectSchema } from "@shared/schema";
 import { motion } from "framer-motion";
+
+const editProjectSchema = insertRwaProjectSchema.extend({
+  totalValue: z.coerce.number().min(0),
+  tokenSupply: z.coerce.number().int().min(1),
+  yieldPercentage: z.coerce.number().min(0).max(100),
+  contractAddress: z.string().optional().or(z.literal("")),
+  websiteUrl: z.string().optional().or(z.literal("")),
+  whitepaperUrl: z.string().optional().or(z.literal("")),
+});
+
+type EditProjectFormData = z.infer<typeof editProjectSchema>;
 
 const assetTypeIcons: Record<string, typeof Building2> = {
   real_estate: Building2,
@@ -55,6 +77,26 @@ export default function ProjectDetailPage() {
   const projectId = params?.id;
   const { toast } = useToast();
   const [selectedTolerance, setSelectedTolerance] = useState<RiskTolerance>("moderate");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  const editForm = useForm<EditProjectFormData>({
+    resolver: zodResolver(editProjectSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      assetType: "real_estate",
+      totalValue: 0,
+      tokenSymbol: "",
+      tokenSupply: 0,
+      yieldPercentage: 0,
+      contractAddress: "",
+      websiteUrl: "",
+      whitepaperUrl: "",
+      teamInfo: "",
+      tokenomics: "",
+      complianceInfo: "",
+    },
+  });
 
   const { data: project, isLoading: projectLoading } = useQuery<RwaProjectWithAnalysis>({
     queryKey: ["/api/projects", projectId],
@@ -92,6 +134,54 @@ export default function ProjectDetailPage() {
       });
     },
   });
+
+  const editMutation = useMutation({
+    mutationFn: async (data: EditProjectFormData) => {
+      const response = await apiRequest("PATCH", `/api/projects/${projectId}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setEditDialogOpen(false);
+      toast({
+        title: "Project updated",
+        description: "Your changes have been saved.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update failed",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openEditDialog = () => {
+    if (project) {
+      editForm.reset({
+        name: project.name,
+        description: project.description,
+        assetType: project.assetType,
+        totalValue: project.totalValue,
+        tokenSymbol: project.tokenSymbol,
+        tokenSupply: project.tokenSupply,
+        yieldPercentage: project.yieldPercentage,
+        contractAddress: project.contractAddress || "",
+        websiteUrl: project.websiteUrl || "",
+        whitepaperUrl: project.whitepaperUrl || "",
+        teamInfo: project.teamInfo,
+        tokenomics: project.tokenomics,
+        complianceInfo: project.complianceInfo,
+      });
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleEditSubmit = (data: EditProjectFormData) => {
+    editMutation.mutate(data);
+  };
 
   if (projectLoading) {
     return (
@@ -221,6 +311,14 @@ export default function ProjectDetailPage() {
                   </a>
                 </Button>
               )}
+              <Button
+                variant="outline"
+                onClick={openEditDialog}
+                data-testid="button-edit-project"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
               <Button
                 onClick={() => analyzeMutation.mutate()}
                 disabled={analyzeMutation.isPending}
@@ -559,6 +657,243 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Update project information. Changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleEditSubmit)}>
+              <ScrollArea className="h-[60vh] pr-4">
+                <div className="space-y-4 pb-4">
+                  <FormField
+                    control={editForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-edit-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} rows={3} data-testid="input-edit-description" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="assetType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Asset Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-edit-assetType">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="real_estate">Real Estate</SelectItem>
+                              <SelectItem value="bonds">Bonds</SelectItem>
+                              <SelectItem value="invoices">Invoices</SelectItem>
+                              <SelectItem value="commodities">Commodities</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="tokenSymbol"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Token Symbol</FormLabel>
+                          <FormControl>
+                            <Input {...field} data-testid="input-edit-tokenSymbol" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="totalValue"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Total Value ($)</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} data-testid="input-edit-totalValue" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="tokenSupply"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Token Supply</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} data-testid="input-edit-tokenSupply" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="yieldPercentage"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Yield (%)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.1" {...field} data-testid="input-edit-yieldPercentage" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={editForm.control}
+                    name="contractAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contract Address (optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-edit-contractAddress" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="websiteUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Website URL (optional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} data-testid="input-edit-websiteUrl" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="whitepaperUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Whitepaper URL (optional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} data-testid="input-edit-whitepaperUrl" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={editForm.control}
+                    name="teamInfo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Team Information</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} rows={3} data-testid="input-edit-teamInfo" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="tokenomics"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tokenomics</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} rows={3} data-testid="input-edit-tokenomics" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="complianceInfo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Compliance Information</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} rows={3} data-testid="input-edit-complianceInfo" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </ScrollArea>
+              <DialogFooter className="mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditDialogOpen(false)}
+                  data-testid="button-edit-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={editMutation.isPending}
+                  data-testid="button-edit-save"
+                >
+                  {editMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : null}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

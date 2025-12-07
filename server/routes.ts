@@ -63,6 +63,29 @@ export async function registerRoutes(
     }
   });
 
+  // Update project
+  app.patch("/api/projects/:id", async (req, res) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Validate update data - allow partial updates
+      const updateSchema = insertRwaProjectSchema.partial();
+      const validatedData = updateSchema.parse(req.body);
+      
+      const updatedProject = await storage.updateProject(req.params.id, validatedData);
+      res.json(updatedProject);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Error updating project:", error);
+      res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
   // Trigger project analysis
   app.post("/api/projects/:id/analyze", async (req, res) => {
     try {
@@ -159,6 +182,17 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching market data:", error);
       res.status(500).json({ error: "Failed to fetch market data" });
+    }
+  });
+
+  // Get platform stats
+  app.get("/api/stats", async (req, res) => {
+    try {
+      const stats = await storage.getStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
 
