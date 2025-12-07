@@ -285,9 +285,8 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         projectMustExist(projectId)
         returns (RiskAnalysis memory) 
     {
-        RiskAnalysis[] storage analyses = projectAnalyses[projectId];
-        require(analyses.length > 0, "No analyses available");
-        return analyses[analyses.length - 1];
+        require(projectAnalyses[projectId].length > 0, "No analyses available");
+        return projectAnalyses[projectId][projectAnalyses[projectId].length - 1];
     }
     
     /**
