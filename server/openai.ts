@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { RwaProject, InsertRiskAnalysis, InsertInvestmentRecommendation } from "@shared/schema";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 interface RiskAnalysisResult {
   overallScore: number;
@@ -113,6 +113,10 @@ Consider these factors:
 Respond ONLY with valid JSON.`;
 
   try {
+    if (!openai) {
+      throw new Error("OpenAI client not initialized");
+    }
+    
     const response = await openai.chat.completions.create({
       model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
