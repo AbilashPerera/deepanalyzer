@@ -77,9 +77,14 @@ export class DatabaseStorage implements IStorage {
     const analysisMap = new Map<string, RiskAnalysis>();
     for (const analysis of allAnalyses) {
       const existing = analysisMap.get(analysis.projectId);
-      if (!existing || (analysis.analyzedAt && existing.analyzedAt && 
-          new Date(analysis.analyzedAt) > new Date(existing.analyzedAt))) {
+      if (!existing) {
         analysisMap.set(analysis.projectId, analysis);
+      } else {
+        const existingTime = existing.analyzedAt ? new Date(existing.analyzedAt).getTime() : 0;
+        const currentTime = analysis.analyzedAt ? new Date(analysis.analyzedAt).getTime() : 0;
+        if (currentTime > existingTime) {
+          analysisMap.set(analysis.projectId, analysis);
+        }
       }
     }
     
