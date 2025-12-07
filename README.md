@@ -1,10 +1,10 @@
-# AI-Powered RWA Risk Analyzer
+# AI-Powered RiskLens
 
 A comprehensive decentralized application (DApp) for evaluating tokenized real-world assets (RWAs) with advanced AI risk scoring, oracle data integration, and personalized investment recommendations. Built for the **Mantle Global Hackathon 2025**.
 
 ## Overview
 
-The RWA Risk Analyzer helps investors make informed decisions in the tokenized asset ecosystem by providing:
+The RiskLens helps investors make informed decisions in the tokenized asset ecosystem by providing:
 
 - **AI-Powered Risk Analysis**: Using GPT-5 to analyze project fundamentals, team credibility, tokenomics, and compliance
 - **Comprehensive Scoring**: 0-100 risk scores with detailed breakdowns across 5 key categories

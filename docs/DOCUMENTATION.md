@@ -1,8 +1,8 @@
-# RWA Risk Analyzer - Technical Documentation
+# RiskLens - Technical Documentation
 
 ## Architecture Overview
 
-The RWA Risk Analyzer is built as a modern full-stack application with clear separation of concerns between frontend, backend, and AI services. **All data is real and stored in PostgreSQL** - there is no demo or mock data in production.
+The RiskLens is built as a modern full-stack application with clear separation of concerns between frontend, backend, and AI services. **All data is real and stored in PostgreSQL** - there is no demo or mock data in production.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

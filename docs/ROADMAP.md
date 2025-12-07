@@ -1,4 +1,4 @@
-# RWA Risk Analyzer - Development Roadmap
+# RiskLens - Development Roadmap
 
 ## Vision
 

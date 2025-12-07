@@ -1,6 +1,6 @@
 # Mantle Global Hackathon 2025 - Submission
 
-## Project: AI-Powered RWA Risk Analyzer
+## Project: AI-Powered RiskLens
 
 ### One-Line Description
 An AI-driven platform for evaluating tokenized real-world assets with comprehensive risk scoring, oracle data integration, and personalized investment recommendations.
@@ -20,7 +20,7 @@ The tokenization of real-world assets (RWAs) is rapidly growing, with projection
 
 ## Solution
 
-The RWA Risk Analyzer provides:
+The RiskLens provides:
 
 ### AI-Powered Analysis
 - GPT-5 integration for intelligent project evaluation

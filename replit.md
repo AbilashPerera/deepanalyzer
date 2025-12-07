@@ -1,8 +1,8 @@
-# RWA Risk Analyzer
+# RiskLens
 
 ## Overview
 
-The RWA Risk Analyzer is an AI-powered decentralized application for evaluating tokenized real-world assets (RWAs). It provides comprehensive risk scoring, investment recommendations, and real-time market monitoring to help investors make informed decisions in the tokenized asset ecosystem.
+The RiskLens is an AI-powered decentralized application for evaluating tokenized real-world assets (RWAs). It provides comprehensive risk scoring, investment recommendations, and real-time market monitoring to help investors make informed decisions in the tokenized asset ecosystem.
 
 The application analyzes RWA projects across five key dimensions: financial health, team credibility, market viability, regulatory compliance, and technical implementation. Using GPT-5 integration, it generates 0-100 risk scores with personalized investment guidance based on user risk tolerance profiles (conservative, moderate, aggressive).
 

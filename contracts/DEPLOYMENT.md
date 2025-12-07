@@ -1,6 +1,6 @@
-# Smart Contract Deployment Guide
+# RiskLens Smart Contract Deployment Guide
 
-This guide explains how to deploy the RWA Risk Analyzer smart contracts on Mantle Network.
+This guide explains how to deploy the RiskLens smart contracts on Mantle Network for the Mantle Global Hackathon 2025.
 
 ## Prerequisites
 
