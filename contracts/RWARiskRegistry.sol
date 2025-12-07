@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
  * @title RWARiskRegistry
  * @dev On-chain registry for RWA (Real World Asset) risk analysis data
  * @notice This contract stores risk scores and analysis metadata for tokenized real-world assets
- * @custom:security-contact security@rwa-analyzer.com
+ * @custom:security-contact security@risklens.io
  */
 contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     
@@ -44,10 +44,20 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         address owner;
     }
     
+    struct AnalysisInput {
+        uint256 overallScore;
+        uint256 financialHealthScore;
+        uint256 teamCredibilityScore;
+        uint256 marketViabilityScore;
+        uint256 regulatoryComplianceScore;
+        uint256 technicalImplementationScore;
+        string ipfsHash;
+    }
+    
     // ============ State Variables ============
     
     mapping(bytes32 => Project) public projects;
-    mapping(bytes32 => RiskAnalysis[]) public projectAnalyses;
+    mapping(bytes32 => RiskAnalysis[]) internal _projectAnalyses;
     mapping(bytes32 => bool) public projectExists;
     mapping(address => bool) public authorizedAnalyzers;
     
@@ -95,20 +105,13 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         _;
     }
     
-    modifier validScores(
-        uint256 overall,
-        uint256 financial,
-        uint256 team,
-        uint256 market,
-        uint256 regulatory,
-        uint256 technical
-    ) {
-        require(overall <= MAX_SCORE, "Overall score exceeds max");
-        require(financial <= MAX_SCORE, "Financial score exceeds max");
-        require(team <= MAX_SCORE, "Team score exceeds max");
-        require(market <= MAX_SCORE, "Market score exceeds max");
-        require(regulatory <= MAX_SCORE, "Regulatory score exceeds max");
-        require(technical <= MAX_SCORE, "Technical score exceeds max");
+    modifier validAnalysisInput(AnalysisInput calldata data) {
+        require(data.overallScore <= MAX_SCORE, "Overall score exceeds max");
+        require(data.financialHealthScore <= MAX_SCORE, "Financial score exceeds max");
+        require(data.teamCredibilityScore <= MAX_SCORE, "Team score exceeds max");
+        require(data.marketViabilityScore <= MAX_SCORE, "Market score exceeds max");
+        require(data.regulatoryComplianceScore <= MAX_SCORE, "Regulatory score exceeds max");
+        require(data.technicalImplementationScore <= MAX_SCORE, "Technical score exceeds max");
         _;
     }
     
@@ -167,62 +170,20 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     /**
      * @notice Submit a risk analysis for a project
      * @param projectId The project ID
-     * @param overallScore Overall risk score (0-100)
-     * @param financialHealthScore Financial health score (0-100)
-     * @param teamCredibilityScore Team credibility score (0-100)
-     * @param marketViabilityScore Market viability score (0-100)
-     * @param regulatoryComplianceScore Regulatory compliance score (0-100)
-     * @param technicalImplementationScore Technical implementation score (0-100)
-     * @param ipfsHash IPFS hash containing detailed analysis
+     * @param data The analysis input data struct
      */
     function submitAnalysis(
         bytes32 projectId,
-        uint256 overallScore,
-        uint256 financialHealthScore,
-        uint256 teamCredibilityScore,
-        uint256 marketViabilityScore,
-        uint256 regulatoryComplianceScore,
-        uint256 technicalImplementationScore,
-        string calldata ipfsHash
+        AnalysisInput calldata data
     ) 
         external 
         whenNotPaused
         onlyAuthorizedAnalyzer
         projectMustExist(projectId)
-        validScores(
-            overallScore,
-            financialHealthScore,
-            teamCredibilityScore,
-            marketViabilityScore,
-            regulatoryComplianceScore,
-            technicalImplementationScore
-        )
+        validAnalysisInput(data)
     {
-        // Check minimum interval since last analysis
-        if (projectAnalyses[projectId].length > 0) {
-            require(
-                block.timestamp >= projectAnalyses[projectId][projectAnalyses[projectId].length - 1].timestamp + MIN_ANALYSIS_INTERVAL,
-                "Too soon since last analysis"
-            );
-        }
-        
-        // Push new analysis directly to storage
-        projectAnalyses[projectId].push(RiskAnalysis({
-            overallScore: overallScore,
-            financialHealthScore: financialHealthScore,
-            teamCredibilityScore: teamCredibilityScore,
-            marketViabilityScore: marketViabilityScore,
-            regulatoryComplianceScore: regulatoryComplianceScore,
-            technicalImplementationScore: technicalImplementationScore,
-            riskLevel: _calculateRiskLevel(overallScore),
-            ipfsHash: ipfsHash,
-            timestamp: block.timestamp,
-            analyzer: msg.sender
-        }));
-        
-        totalAnalyses++;
-        
-        emit AnalysisSubmitted(projectId, overallScore, _calculateRiskLevel(overallScore), msg.sender);
+        RiskLevel riskLevel = _recordAnalysis(projectId, msg.sender, data);
+        emit AnalysisSubmitted(projectId, data.overallScore, riskLevel, msg.sender);
     }
     
     /**
@@ -282,8 +243,8 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         projectMustExist(projectId)
         returns (RiskAnalysis memory) 
     {
-        require(projectAnalyses[projectId].length > 0, "No analyses available");
-        return projectAnalyses[projectId][projectAnalyses[projectId].length - 1];
+        require(_projectAnalyses[projectId].length > 0, "No analyses available");
+        return _projectAnalyses[projectId][_projectAnalyses[projectId].length - 1];
     }
     
     /**
@@ -296,7 +257,7 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         projectMustExist(projectId)
         returns (RiskAnalysis[] memory) 
     {
-        return projectAnalyses[projectId];
+        return _projectAnalyses[projectId];
     }
     
     /**
@@ -309,7 +270,7 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         projectMustExist(projectId)
         returns (uint256) 
     {
-        return projectAnalyses[projectId].length;
+        return _projectAnalyses[projectId].length;
     }
     
     /**
@@ -341,6 +302,47 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     }
     
     // ============ Internal Functions ============
+    
+    /**
+     * @dev Record a new analysis to storage
+     * @param projectId The project ID
+     * @param analyzer The analyzer address
+     * @param data The analysis input data
+     * @return riskLevel The calculated risk level
+     */
+    function _recordAnalysis(
+        bytes32 projectId,
+        address analyzer,
+        AnalysisInput calldata data
+    ) internal returns (RiskLevel) {
+        RiskAnalysis[] storage analyses = _projectAnalyses[projectId];
+        
+        if (analyses.length > 0) {
+            require(
+                block.timestamp >= analyses[analyses.length - 1].timestamp + MIN_ANALYSIS_INTERVAL,
+                "Too soon since last analysis"
+            );
+        }
+        
+        RiskLevel riskLevel = _calculateRiskLevel(data.overallScore);
+        
+        analyses.push(RiskAnalysis({
+            overallScore: data.overallScore,
+            financialHealthScore: data.financialHealthScore,
+            teamCredibilityScore: data.teamCredibilityScore,
+            marketViabilityScore: data.marketViabilityScore,
+            regulatoryComplianceScore: data.regulatoryComplianceScore,
+            technicalImplementationScore: data.technicalImplementationScore,
+            riskLevel: riskLevel,
+            ipfsHash: data.ipfsHash,
+            timestamp: block.timestamp,
+            analyzer: analyzer
+        }));
+        
+        totalAnalyses++;
+        
+        return riskLevel;
+    }
     
     /**
      * @dev Calculate risk level based on overall score
