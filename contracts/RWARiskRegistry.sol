@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+pragma solidity ^0.8.19;
 
 /**
  * @title RWARiskRegistry
  * @dev On-chain registry for RWA (Real World Asset) risk analysis data
- * @notice This contract stores risk scores and analysis metadata for tokenized real-world assets
+ * @notice Stores risk scores and analysis metadata for tokenized real-world assets
  * @custom:security-contact security@risklens.io
  */
-contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
+contract RWARiskRegistry {
     
     // ============ Enums ============
     
@@ -21,14 +17,14 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     // ============ Structs ============
     
     struct RiskAnalysis {
-        uint256 overallScore;           // 0-100
-        uint256 financialHealthScore;    // 0-100
-        uint256 teamCredibilityScore;    // 0-100
-        uint256 marketViabilityScore;    // 0-100
-        uint256 regulatoryComplianceScore; // 0-100
-        uint256 technicalImplementationScore; // 0-100
+        uint256 overallScore;
+        uint256 financialHealthScore;
+        uint256 teamCredibilityScore;
+        uint256 marketViabilityScore;
+        uint256 regulatoryComplianceScore;
+        uint256 technicalImplementationScore;
         RiskLevel riskLevel;
-        string ipfsHash;                 // IPFS hash for detailed analysis
+        string ipfsHash;
         uint256 timestamp;
         address analyzer;
     }
@@ -56,6 +52,10 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     
     // ============ State Variables ============
     
+    address public owner;
+    bool public paused;
+    bool private locked;
+    
     mapping(bytes32 => Project) public projects;
     mapping(bytes32 => RiskAnalysis[]) internal _projectAnalyses;
     mapping(bytes32 => bool) public projectExists;
@@ -70,6 +70,10 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant MIN_ANALYSIS_INTERVAL = 1 hours;
     
     // ============ Events ============
+    
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event Paused(address account);
+    event Unpaused(address account);
     
     event ProjectRegistered(
         bytes32 indexed projectId,
@@ -87,14 +91,30 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
     );
     
     event AnalyzerAuthorized(address indexed analyzer, bool status);
-    
     event ProjectStatusChanged(bytes32 indexed projectId, bool isActive);
     
     // ============ Modifiers ============
     
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+    
+    modifier nonReentrant() {
+        require(!locked, "Reentrant call");
+        locked = true;
+        _;
+        locked = false;
+    }
+    
+    modifier whenNotPaused() {
+        require(!paused, "Contract is paused");
+        _;
+    }
+    
     modifier onlyAuthorizedAnalyzer() {
         require(
-            authorizedAnalyzers[msg.sender] || msg.sender == owner(),
+            authorizedAnalyzers[msg.sender] || msg.sender == owner,
             "Not authorized analyzer"
         );
         _;
@@ -105,32 +125,39 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         _;
     }
     
-    modifier validAnalysisInput(AnalysisInput calldata data) {
-        require(data.overallScore <= MAX_SCORE, "Overall score exceeds max");
-        require(data.financialHealthScore <= MAX_SCORE, "Financial score exceeds max");
-        require(data.teamCredibilityScore <= MAX_SCORE, "Team score exceeds max");
-        require(data.marketViabilityScore <= MAX_SCORE, "Market score exceeds max");
-        require(data.regulatoryComplianceScore <= MAX_SCORE, "Regulatory score exceeds max");
-        require(data.technicalImplementationScore <= MAX_SCORE, "Technical score exceeds max");
-        _;
-    }
-    
     // ============ Constructor ============
     
-    constructor() Ownable(msg.sender) {
+    constructor() {
+        owner = msg.sender;
         authorizedAnalyzers[msg.sender] = true;
+        emit OwnershipTransferred(address(0), msg.sender);
+    }
+    
+    // ============ Owner Functions ============
+    
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Invalid address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+    
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+    
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+    
+    function setAnalyzerAuthorization(address analyzer, bool status) external onlyOwner {
+        authorizedAnalyzers[analyzer] = status;
+        emit AnalyzerAuthorized(analyzer, status);
     }
     
     // ============ External Functions ============
     
-    /**
-     * @notice Register a new RWA project
-     * @param name Project name
-     * @param assetType Type of real-world asset
-     * @param tokenContract Address of the token contract
-     * @param totalValue Total value of the underlying assets
-     * @param tokenSymbol Token symbol
-     */
     function registerProject(
         string calldata name,
         AssetType assetType,
@@ -167,49 +194,27 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         return projectId;
     }
     
-    /**
-     * @notice Submit a risk analysis for a project
-     * @param projectId The project ID
-     * @param data The analysis input data struct
-     */
     function submitAnalysis(
         bytes32 projectId,
         AnalysisInput calldata data
     ) 
         external 
         whenNotPaused
+        nonReentrant
         onlyAuthorizedAnalyzer
         projectMustExist(projectId)
-        validAnalysisInput(data)
     {
+        _validateScores(data);
         RiskLevel riskLevel = _recordAnalysis(projectId, msg.sender, data);
         emit AnalysisSubmitted(projectId, data.overallScore, riskLevel, msg.sender);
     }
     
-    /**
-     * @notice Authorize or revoke an analyzer
-     * @param analyzer Address of the analyzer
-     * @param status Authorization status
-     */
-    function setAnalyzerAuthorization(address analyzer, bool status) 
-        external 
-        onlyOwner 
-    {
-        authorizedAnalyzers[analyzer] = status;
-        emit AnalyzerAuthorized(analyzer, status);
-    }
-    
-    /**
-     * @notice Set project active status
-     * @param projectId The project ID
-     * @param isActive Active status
-     */
     function setProjectStatus(bytes32 projectId, bool isActive) 
         external 
         projectMustExist(projectId)
     {
         require(
-            msg.sender == projects[projectId].owner || msg.sender == owner(),
+            msg.sender == projects[projectId].owner || msg.sender == owner,
             "Not authorized"
         );
         
@@ -217,26 +222,8 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         emit ProjectStatusChanged(projectId, isActive);
     }
     
-    /**
-     * @notice Pause the contract
-     */
-    function pause() external onlyOwner {
-        _pause();
-    }
-    
-    /**
-     * @notice Unpause the contract
-     */
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-    
     // ============ View Functions ============
     
-    /**
-     * @notice Get the latest analysis for a project
-     * @param projectId The project ID
-     */
     function getLatestAnalysis(bytes32 projectId) 
         external 
         view 
@@ -247,10 +234,6 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         return _projectAnalyses[projectId][_projectAnalyses[projectId].length - 1];
     }
     
-    /**
-     * @notice Get all analyses for a project
-     * @param projectId The project ID
-     */
     function getProjectAnalyses(bytes32 projectId) 
         external 
         view 
@@ -260,10 +243,6 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         return _projectAnalyses[projectId];
     }
     
-    /**
-     * @notice Get analysis count for a project
-     * @param projectId The project ID
-     */
     function getAnalysisCount(bytes32 projectId) 
         external 
         view 
@@ -273,17 +252,10 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         return _projectAnalyses[projectId].length;
     }
     
-    /**
-     * @notice Get all project IDs
-     */
     function getAllProjectIds() external view returns (bytes32[] memory) {
         return projectIds;
     }
     
-    /**
-     * @notice Get project details
-     * @param projectId The project ID
-     */
     function getProject(bytes32 projectId) 
         external 
         view 
@@ -293,23 +265,21 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         return projects[projectId];
     }
     
-    /**
-     * @notice Check if an address is an authorized analyzer
-     * @param analyzer Address to check
-     */
     function isAuthorizedAnalyzer(address analyzer) external view returns (bool) {
         return authorizedAnalyzers[analyzer];
     }
     
     // ============ Internal Functions ============
     
-    /**
-     * @dev Record a new analysis to storage
-     * @param projectId The project ID
-     * @param analyzer The analyzer address
-     * @param data The analysis input data
-     * @return riskLevel The calculated risk level
-     */
+    function _validateScores(AnalysisInput calldata data) internal pure {
+        require(data.overallScore <= MAX_SCORE, "Overall score exceeds max");
+        require(data.financialHealthScore <= MAX_SCORE, "Financial score exceeds max");
+        require(data.teamCredibilityScore <= MAX_SCORE, "Team score exceeds max");
+        require(data.marketViabilityScore <= MAX_SCORE, "Market score exceeds max");
+        require(data.regulatoryComplianceScore <= MAX_SCORE, "Regulatory score exceeds max");
+        require(data.technicalImplementationScore <= MAX_SCORE, "Technical score exceeds max");
+    }
+    
     function _recordAnalysis(
         bytes32 projectId,
         address analyzer,
@@ -344,10 +314,6 @@ contract RWARiskRegistry is Ownable, ReentrancyGuard, Pausable {
         return riskLevel;
     }
     
-    /**
-     * @dev Calculate risk level based on overall score
-     * @param score Overall risk score
-     */
     function _calculateRiskLevel(uint256 score) internal pure returns (RiskLevel) {
         if (score >= 75) return RiskLevel.Low;
         if (score >= 50) return RiskLevel.Medium;
